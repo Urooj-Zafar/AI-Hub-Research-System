@@ -1,6 +1,6 @@
 import unittest
 
-from backend.app.services.model_selector import classify_task, select_models
+from app.services.model_selector import classify_task, select_models
 
 
 class ModelSelectorTests(unittest.TestCase):

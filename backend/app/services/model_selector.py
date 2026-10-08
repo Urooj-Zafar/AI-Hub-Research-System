@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from backend.app.core.config import BASELINE_MODEL, FALLBACK_MODEL, TASK_MODELS
+from app.core.config import BASELINE_MODEL, FALLBACK_MODEL, TASK_MODELS
 
 CODING_PATTERN = re.compile(
     r"\b(code|coding|program|algorithm|function|debug|bug|script|javascript|"

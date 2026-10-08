@@ -9,13 +9,13 @@ import time
 
 from groq import AsyncGroq
 
-from backend.app.core.config import (
+from app.core.config import (
     FAILURE_RATE,
     MODEL_LIST_CACHE_SECONDS,
     REQUEST_TIMEOUT_SECONDS,
     SIMULATE_FAILURE,
 )
-from backend.app.services.error_handler import (
+from app.services.error_handler import (
     GroqConfigurationError,
     SimulatedProviderError,
     UnsupportedModelError,

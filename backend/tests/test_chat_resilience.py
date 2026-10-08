@@ -2,8 +2,8 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
-from backend.app.services.chat_service import execute_chat
-from backend.app.services.error_handler import SimulatedProviderError
+from app.services.chat_service import execute_chat
+from app.services.error_handler import SimulatedProviderError
 
 
 class FakePool:

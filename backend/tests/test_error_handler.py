@@ -1,6 +1,6 @@
 import unittest
 
-from backend.app.services.error_handler import (
+from app.services.error_handler import (
     GroqConfigurationError,
     SimulatedProviderError,
     UnsupportedModelError,

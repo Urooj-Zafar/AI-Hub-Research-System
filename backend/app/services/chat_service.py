@@ -8,25 +8,25 @@ import time
 import asyncpg
 from groq import AsyncGroq
 
-from backend.app.core.config import (
+from app.core.config import (
     BASE_DELAY_SECONDS,
     MAX_RETRIES,
     REQUEST_TIMEOUT_SECONDS,
 )
-from backend.app.models.request_model import ChatResult
-from backend.app.services.error_handler import (
+from    app.models.request_model import ChatResult
+from app.services.error_handler import (
     GroqConfigurationError,
     SimulatedProviderError,
     classify_error,
     is_retryable,
     user_facing_error,
 )
-from backend.app.services.groq_service import (
+from app.services.groq_service import (
     create_groq_client,
     ensure_model_supported,
     maybe_simulate_primary_failure,
 )
-from backend.app.services.model_selector import classify_task, select_models
+from app.services.model_selector import classify_task, select_models
 
 logger = logging.getLogger("ai_hub")
 
