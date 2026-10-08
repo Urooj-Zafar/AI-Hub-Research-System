@@ -1,0 +1,27 @@
+kind = "api"
+previewPath = "/api"
+title = "AI Hub API"
+version = "1.0.0"
+id = "3B4_FFSkEVBkAeYMFRJ2e"
+
+[[services]]
+localPort = 8080
+name = "API Server"
+paths = ["/api"]
+
+[services.development]
+run = 'cd ../.. && python -m uvicorn backend.app.main:app --host 0.0.0.0 --port "$PORT"'
+
+[services.production]
+
+[services.production.build]
+args = ["uv", "sync", "--locked", "--no-install-project"]
+
+[services.production.run]
+args = ["uv", "run", "--no-sync", "python", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+
+[services.production.run.env]
+PORT = "8080"
+
+[services.production.health.startup]
+path = "/api/healthz"

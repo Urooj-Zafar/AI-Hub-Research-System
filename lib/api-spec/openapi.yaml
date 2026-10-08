@@ -1,0 +1,408 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: REST API for AI Hub research experiments and stored request metrics.
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Service health and app information
+  - name: research
+    description: Chat experiments, request history, and PostgreSQL-backed statistics
+paths:
+  /:
+    get:
+      operationId: getApplicationInfo
+      tags: [health]
+      summary: Get application information
+      responses:
+        "200":
+          description: Application information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationInfo"
+  /health:
+    get:
+      operationId: getHealth
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Legacy health check
+      description: Kept for the shared Replit API service health monitor.
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /chat:
+    post:
+      operationId: sendChatMessage
+      tags: [research]
+      summary: Run an AI research request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatInput"
+      responses:
+        "200":
+          description: The AI request was completed and recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResult"
+        "502":
+          description: The AI provider and fallback could not complete the request; the attempt is still recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResult"
+        "503":
+          description: Groq configuration is missing or invalid; the attempt is still recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResult"
+        "422":
+          description: The request body is invalid
+  /statistics:
+    get:
+      operationId: getStatistics
+      tags: [research]
+      summary: Get actual research statistics
+      description: All measurements are computed from PostgreSQL records; simulated attempts are excluded from experiment metrics.
+      responses:
+        "200":
+          description: Aggregate statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Statistics"
+  /requests:
+    get:
+      operationId: getRequests
+      tags: [research]
+      summary: List stored AI requests
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: experimentMode
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ExperimentMode"
+      responses:
+        "200":
+          description: Stored request records, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestList"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    ApplicationInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: string
+      required: [name, description, version]
+    TaskType:
+      type: string
+      enum: [Coding, General Knowledge, Reasoning, Creative Writing]
+    ExperimentMode:
+      type: string
+      enum: [baseline, proposed]
+    ErrorType:
+      type: string
+      enum:
+        - timeout
+        - rate_limit
+        - server_error
+        - network_error
+        - authentication_error
+        - invalid_request
+        - unknown_error
+    FinalStatus:
+      type: string
+      enum: [success, failed]
+    ChatInput:
+      type: object
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        experimentMode:
+          $ref: "#/components/schemas/ExperimentMode"
+      required: [message, experimentMode]
+    ChatResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        success:
+          type: boolean
+        response:
+          type: ["string", "null"]
+        errorMessage:
+          type: ["string", "null"]
+        taskType:
+          $ref: "#/components/schemas/TaskType"
+        experimentMode:
+          $ref: "#/components/schemas/ExperimentMode"
+        model:
+          type: ["string", "null"]
+        primaryModel:
+          type: string
+        fallbackModel:
+          type: string
+        fallbackUsed:
+          type: boolean
+        retryCount:
+          type: integer
+          minimum: 0
+        responseTimeMs:
+          type: integer
+          minimum: 0
+        errorType:
+          anyOf:
+            - $ref: "#/components/schemas/ErrorType"
+            - type: "null"
+        isSimulated:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - success
+        - response
+        - errorMessage
+        - taskType
+        - experimentMode
+        - model
+        - primaryModel
+        - fallbackModel
+        - fallbackUsed
+        - retryCount
+        - responseTimeMs
+        - errorType
+        - isSimulated
+        - createdAt
+    RequestRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        taskType:
+          $ref: "#/components/schemas/TaskType"
+        experimentMode:
+          $ref: "#/components/schemas/ExperimentMode"
+        model:
+          type: ["string", "null"]
+        primaryModel:
+          type: string
+        fallbackModel:
+          type: string
+        responseTimeMs:
+          type: integer
+        retryCount:
+          type: integer
+        errorType:
+          anyOf:
+            - $ref: "#/components/schemas/ErrorType"
+            - type: "null"
+        fallbackUsed:
+          type: boolean
+        finalStatus:
+          $ref: "#/components/schemas/FinalStatus"
+        isSimulated:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - taskType
+        - experimentMode
+        - model
+        - primaryModel
+        - fallbackModel
+        - responseTimeMs
+        - retryCount
+        - errorType
+        - fallbackUsed
+        - finalStatus
+        - isSimulated
+        - createdAt
+    RequestList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RequestRecord"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [items, total, limit, offset]
+    TaskCount:
+      type: object
+      properties:
+        taskType:
+          $ref: "#/components/schemas/TaskType"
+        count:
+          type: integer
+      required: [taskType, count]
+    ModelCount:
+      type: object
+      properties:
+        model:
+          type: string
+        count:
+          type: integer
+      required: [model, count]
+    ErrorCount:
+      type: object
+      properties:
+        errorType:
+          $ref: "#/components/schemas/ErrorType"
+        count:
+          type: integer
+      required: [errorType, count]
+    ExperimentSummary:
+      type: object
+      properties:
+        experimentMode:
+          $ref: "#/components/schemas/ExperimentMode"
+        totalRequests:
+          type: integer
+        successfulRequests:
+          type: integer
+        failedRequests:
+          type: integer
+        successRate:
+          type: number
+        averageResponseTimeMs:
+          type: number
+        totalRetries:
+          type: integer
+        fallbackEvents:
+          type: integer
+      required:
+        - experimentMode
+        - totalRequests
+        - successfulRequests
+        - failedRequests
+        - successRate
+        - averageResponseTimeMs
+        - totalRetries
+        - fallbackEvents
+    FallbackSummary:
+      type: object
+      properties:
+        totalEvents:
+          type: integer
+        percentage:
+          type: number
+        successfulResponses:
+          type: integer
+        failedResponses:
+          type: integer
+      required: [totalEvents, percentage, successfulResponses, failedResponses]
+    Statistics:
+      type: object
+      properties:
+        totalRequests:
+          type: integer
+        successfulRequests:
+          type: integer
+        failedRequests:
+          type: integer
+        successRate:
+          type: number
+        failureRate:
+          type: number
+        averageResponseTimeMs:
+          type: number
+        totalRetries:
+          type: integer
+        fallback:
+          $ref: "#/components/schemas/FallbackSummary"
+        taskDistribution:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskCount"
+        modelUsage:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelCount"
+        errorAnalysis:
+          type: array
+          items:
+            $ref: "#/components/schemas/ErrorCount"
+        experimentComparison:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExperimentSummary"
+        simulatedRequestsExcluded:
+          type: integer
+      required:
+        - totalRequests
+        - successfulRequests
+        - failedRequests
+        - successRate
+        - failureRate
+        - averageResponseTimeMs
+        - totalRetries
+        - fallback
+        - taskDistribution
+        - modelUsage
+        - errorAnalysis
+        - experimentComparison
+        - simulatedRequestsExcluded
+

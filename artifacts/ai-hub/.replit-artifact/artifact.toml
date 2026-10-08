@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "AI Hub Research System"
+description = "An integrated multi-AI research platform for testing task-based Groq model selection, resilience behavior, and response performance using real PostgreSQL request data."
+version = "1.0.0"
+id = "artifacts/ai-hub"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25028
+
+[services.development]
+run = "pnpm --filter @workspace/ai-hub run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/ai-hub", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/ai-hub/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25028"
+BASE_PATH = "/"
