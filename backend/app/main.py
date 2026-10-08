@@ -10,10 +10,10 @@ import asyncpg
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.app.api.chat import router as chat_router
-from backend.app.api.health import router as health_router
-from backend.app.api.statistics import router as statistics_router
-from backend.app.database.database import create_pool
+from app.api.chat import router as chat_router
+from app.api.health import router as health_router
+from app.api.statistics import router as statistics_router
+from app.database.database import create_pool
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO").upper(),
