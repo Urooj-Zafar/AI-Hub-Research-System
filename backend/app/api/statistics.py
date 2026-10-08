@@ -5,9 +5,9 @@ from typing import Literal
 import asyncpg
 from fastapi import APIRouter, Depends, Query
 
-from backend.app.core.config import ERROR_TYPES, EXPERIMENT_MODES, TASK_TYPES
-from backend.app.database.database import get_pool
-from backend.app.models.request_model import (
+from app.core.config import ERROR_TYPES, EXPERIMENT_MODES, TASK_TYPES
+from app.database.database import get_pool
+from app.models.request_model import (
     ErrorCount,
     ExperimentSummary,
     FallbackSummary,

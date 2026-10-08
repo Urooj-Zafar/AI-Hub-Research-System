@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 import asyncpg
 
-from backend.app.database.database import get_pool
-from backend.app.models.request_model import ChatInput, ChatResult
-from backend.app.services.chat_service import execute_chat
+from app.database.database import get_pool
+from app.models.request_model import ChatInput, ChatResult
+from app.services.chat_service import execute_chat
 
 router = APIRouter()
 

@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter
 
-from backend.app.core.config import APP_DESCRIPTION, APP_NAME, APP_VERSION
-from backend.app.models.request_model import ApplicationInfo, HealthStatus
+from app.core.config import APP_DESCRIPTION, APP_NAME, APP_VERSION
+from app.models.request_model import ApplicationInfo, HealthStatus
 
 router = APIRouter()
 
