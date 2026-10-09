@@ -83,11 +83,12 @@ async def execute_chat(
                 last_error_type = classify_error(exc)
                 is_simulated = is_simulated or isinstance(exc, SimulatedProviderError)
                 logger.warning(
-                    "Primary model attempt failed: model=%s error_type=%s retry=%s simulated=%s",
+                    "Primary model attempt failed: model=%s error_type=%s retry=%s simulated=%s exception=%s",
                     primary_model,
                     last_error_type,
                     retry_count,
                     is_simulated,
+                    str(exc),
                 )
                 if (
                     experiment_mode != "proposed"
@@ -111,10 +112,11 @@ async def execute_chat(
                 last_error_type = classify_error(exc)
                 is_simulated = is_simulated or isinstance(exc, SimulatedProviderError)
                 logger.warning(
-                    "Fallback model attempt failed: model=%s error_type=%s simulated=%s",
+                    "Fallback model attempt failed: model=%s error_type=%s simulated=%s exception=%s",
                     fallback_model,
                     last_error_type,
                     is_simulated,
+                    str(exc),
                 )
 
     response_time_ms = max(0, int((time.perf_counter() - started_at) * 1000))
