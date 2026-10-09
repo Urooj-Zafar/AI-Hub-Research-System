@@ -1,3 +1,4 @@
+
 """Chat orchestration, measured execution, resilience, and PostgreSQL logging."""
 
 from __future__ import annotations
@@ -5,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+
 import asyncpg
 from groq import AsyncGroq
 
@@ -13,7 +15,7 @@ from app.core.config import (
     MAX_RETRIES,
     REQUEST_TIMEOUT_SECONDS,
 )
-from    app.models.request_model import ChatResult
+from app.models.request_model import ChatResult
 from app.services.error_handler import (
     GroqConfigurationError,
     SimulatedProviderError,
@@ -21,6 +23,7 @@ from app.services.error_handler import (
     is_retryable,
     user_facing_error,
 )
+from app.services.gemini_service import call_gemini
 from app.services.groq_service import (
     create_groq_client,
     ensure_model_supported,
@@ -31,21 +34,37 @@ from app.services.model_selector import classify_task, select_models
 logger = logging.getLogger("ai_hub")
 
 
-async def _call_model(client: AsyncGroq, model_id: str, message: str) -> str:
+async def _call_model(
+    client: AsyncGroq | None,
+    model_id: str,
+    message: str,
+) -> str:
+    """Call the provider identified by the model ID."""
+
+    if model_id.startswith("gemini-"):
+        return await call_gemini(model_id, message)
+
+    if client is None:
+        raise GroqConfigurationError("Groq client is unavailable.")
+
     await ensure_model_supported(client, model_id)
+
     result = await client.chat.completions.create(
         model=model_id,
         messages=[
             {
                 "role": "system",
-                "content": "Answer clearly and accurately. If a request is ambiguous, state the assumption you use.",
+                "content": (
+                    "Answer clearly and accurately. "
+                    "If a request is ambiguous, state the assumption you use."
+                ),
             },
             {"role": "user", "content": message},
         ],
         max_tokens=2048,
     )
-    content = result.choices[0].message.content
-    return content or ""
+
+    return result.choices[0].message.content or ""
 
 
 async def execute_chat(
@@ -54,7 +73,10 @@ async def execute_chat(
     experiment_mode: str,
 ) -> ChatResult:
     task_type = classify_task(message)
-    primary_model, fallback_model = select_models(task_type, experiment_mode)
+    primary_model, fallback_model = select_models(
+        task_type, experiment_mode
+    )
+
     started_at = time.perf_counter()
     retry_count = 0
     fallback_used = False
@@ -68,58 +90,84 @@ async def execute_chat(
     except GroqConfigurationError as exc:
         client = None
         last_error_type = classify_error(exc)
+        logger.warning("Could not create Groq client: %s", exc)
 
+    # Try the primary model and retry eligible failures in proposed mode.
     if client is not None:
         while True:
             try:
                 await maybe_simulate_primary_failure()
+
                 final_response = await asyncio.wait_for(
                     _call_model(client, primary_model, message),
                     timeout=REQUEST_TIMEOUT_SECONDS,
                 )
                 final_model = primary_model
                 break
+
             except Exception as exc:
                 last_error_type = classify_error(exc)
-                is_simulated = is_simulated or isinstance(exc, SimulatedProviderError)
+                is_simulated = (
+                    is_simulated
+                    or isinstance(exc, SimulatedProviderError)
+                )
+
                 logger.warning(
-                    "Primary model attempt failed: model=%s error_type=%s retry=%s simulated=%s exception=%s",
+                    "Primary attempt failed: model=%s error_type=%s "
+                    "retry=%s simulated=%s exception=%s",
                     primary_model,
                     last_error_type,
                     retry_count,
                     is_simulated,
                     str(exc),
                 )
+
                 if (
                     experiment_mode != "proposed"
                     or not is_retryable(last_error_type)
                     or retry_count >= MAX_RETRIES
                 ):
                     break
+
                 delay = BASE_DELAY_SECONDS * (2**retry_count)
                 retry_count += 1
                 await asyncio.sleep(delay)
 
-        if final_response is None and experiment_mode == "proposed":
-            fallback_used = True
-            try:
-                final_response = await asyncio.wait_for(
-                    _call_model(client, fallback_model, message),
-                    timeout=REQUEST_TIMEOUT_SECONDS,
-                )
-                final_model = fallback_model
-            except Exception as exc:
-                last_error_type = classify_error(exc)
-                is_simulated = is_simulated or isinstance(exc, SimulatedProviderError)
-                logger.warning(
-                    "Fallback model attempt failed: model=%s error_type=%s simulated=%s exception=%s",
-                    fallback_model,
-                    last_error_type,
-                    is_simulated,
-                    str(exc),
-                )
+    # Cross-provider fallback. This must remain outside the primary block.
+    if final_response is None and experiment_mode == "proposed":
+        fallback_used = True
 
-    response_time_ms = max(0, int((time.perf_counter() - started_at) * 1000))
+        try:
+            final_response = await asyncio.wait_for(
+                _call_model(client, fallback_model, message),
+                timeout=REQUEST_TIMEOUT_SECONDS,
+            )
+            final_model = fallback_model
+
+            logger.info(
+                "Fallback succeeded: model=%s",
+                fallback_model,
+            )
+
+        except Exception as exc:
+            last_error_type = classify_error(exc)
+            is_simulated = (
+                is_simulated
+                or isinstance(exc, SimulatedProviderError)
+            )
+
+            logger.warning(
+                "Fallback failed: model=%s error_type=%s "
+                "simulated=%s exception=%s",
+                fallback_model,
+                last_error_type,
+                is_simulated,
+                str(exc),
+            )
+
+    response_time_ms = max(
+        0, int((time.perf_counter() - started_at) * 1000)
+    )
     success = final_response is not None
     final_status = "success" if success else "failed"
 
@@ -127,9 +175,10 @@ async def execute_chat(
         row = await pool.fetchrow(
             """
             INSERT INTO ai_requests (
-                user_query, task_type, experiment_mode, model, primary_model,
-                fallback_model, response_time_ms, retry_count, error_type,
-                fallback_used, final_status, is_simulated
+                user_query, task_type, experiment_mode, model,
+                primary_model, fallback_model, response_time_ms,
+                retry_count, error_type, fallback_used, final_status,
+                is_simulated
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             RETURNING id, created_at
@@ -151,13 +200,16 @@ async def execute_chat(
         logger.exception("Could not store AI request in PostgreSQL.")
         raise
 
-    error_message = None if success else user_facing_error(
-        last_error_type or "unknown_error"
+    error_message = (
+        None
+        if success
+        else user_facing_error(last_error_type or "unknown_error")
     )
+
     if not success and is_simulated:
         error_message = (
-            "This controlled test attempt failed and was saved separately from "
-            "the real-experiment statistics."
+            "This controlled test attempt failed and was saved separately "
+            "from the real-experiment statistics."
         )
 
     return ChatResult(
@@ -177,5 +229,3 @@ async def execute_chat(
         is_simulated=is_simulated,
         created_at=row["created_at"],
     )
-
-

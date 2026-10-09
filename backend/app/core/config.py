@@ -21,7 +21,10 @@ TASK_MODELS = {
     "Creative Writing": os.getenv("GROQ_MODEL_CREATIVE", "qwen/qwen3.8-27b"),
 }
 BASELINE_MODEL = os.getenv("GROQ_BASELINE_MODEL", "openai/gpt-oss-20b")
-FALLBACK_MODEL = os.getenv("GROQ_FALLBACK_MODEL", "openai/gpt-oss-20b")
+FALLBACK_MODEL = os.getenv(
+    "GEMINI_FALLBACK_MODEL",
+    "gemini-2.5-flash-lite",
+)
 
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "2"))
 BASE_DELAY_SECONDS = float(os.getenv("RETRY_BASE_DELAY_SECONDS", "0.25"))
